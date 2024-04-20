@@ -2,8 +2,6 @@
 
 This snippet code provides aproach for encrypting the huge or large files (let say with size around 50-100 GB) .
 
-The basic idea is reading (one single thread) the input file (with mmap) by chunks and appending them to QUEUE_A. 
-From the QUEUE_A the chunks are continually read and processed (e.g. encrypted or decrypted), and the processing result is written to the QUEUE_B.
-On the QUEUE_B, the listener continually reads the processed chunks and writes them to the output file.
-
-
+The code shows how to handle big files in Python using memory mapping and asyncio. 
+It reads file chunks asynchronously, processes them (original ide was encryption), and writes the results to file. 
+Although encryption isn't implemented, the code illustrates another way to manage large files.
