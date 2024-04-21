@@ -1,4 +1,3 @@
-import sys
 import os
 import mmap
 import time
@@ -52,6 +51,7 @@ def process_file_chunk(file_data_chunk):
 async def processor(input_queue: Queue, output_queue: Queue):
     while True:
         file_data_chunk = await input_queue.get()
+        input_queue.task_done()
         if file_data_chunk is not None:
             # print("More chunks to process")
             await output_queue.put(process_file_chunk(file_data_chunk))
@@ -62,32 +62,46 @@ async def processor(input_queue: Queue, output_queue: Queue):
     return None
 
 
-async def write_output_file(output_queue: Queue, output_file: str):
-    with open(output_file, "wb") as f:
+async def write_output_file(input_queue: Queue, output_file: str):
+    file_size = 0
+    with open(output_file, 'a+b') as file:
         while True:
-            file_data_chunk = await output_queue.get()
-            if file_data_chunk is not None:
-                f.write(file_data_chunk)
+            chunk = await input_queue.get();
+            input_queue.task_done()
+            if chunk is not None and len(chunk) != 0:
+                file_size += len(chunk)
+                with mmap.mmap(file.fileno(), file_size) as mm:
+                    mm.write(chunk)
+                    mm.flush()
             else:
-                break
+                print("write done2")
+                return None
+
     print("write done")
     return None
+
+
+def prepare_output_file(output_file: str):
+    with open(output_file, 'w') as f:
+        f.truncate(0)
 
 
 async def process_file():
     start = time.time()
     input_file = 'input_file'
     output_file = 'output_file'
-    queue_size = 6
+    queue_size = 10
     file_data_chunk_size = 10000000
     input_queue = asyncio.Queue(maxsize=queue_size)
     output_queue = asyncio.Queue(maxsize=queue_size)
 
-    input_task = asyncio.create_task(read_input_file(input_file, input_queue, file_data_chunk_size))
-    mediator_task = asyncio.create_task(processor(input_queue, output_queue))
-    write_task = asyncio.create_task(write_output_file(output_queue, output_file))
+    prepare_output_file(output_file)
 
-    await asyncio.gather(input_task, mediator_task, write_task)
+    write_task = asyncio.create_task(write_output_file(output_queue, output_file))
+    input_task = asyncio.create_task(read_input_file(input_file, input_queue, file_data_chunk_size))
+    processor_task = asyncio.create_task(processor(input_queue, output_queue))
+
+    await asyncio.gather(input_task, processor_task, write_task)
 
     end = time.time() - start
     print("Time difference:", end, "seconds")
